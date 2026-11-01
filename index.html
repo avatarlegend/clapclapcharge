@@ -265,6 +265,7 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
         <fieldset id="diffSet">
           <legend>CPU level</legend>
           <div class="seg">
+            <label><input type="radio" name="diff" id="diff-pacifist" value="pacifist"><span>Pacifist</span></label>
             <label><input type="radio" name="diff" id="diff-easy" value="easy"><span>Easy</span></label>
             <label><input type="radio" name="diff" id="diff-normal" value="normal" checked><span>Normal</span></label>
             <label><input type="radio" name="diff" id="diff-hard" value="hard"><span>Hard</span></label>
@@ -322,14 +323,14 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
     <section class="rules">
       <h2>Rules as built</h2>
       <ul>
-        <li>Rounds 1 and 2 are clap clap charge for both players, so everyone has 2 mana from round 3.</li>
         <li>Each round is clap, clap, then both players show a move at once. Whoever gets hit loses the game.</li>
+        <li>Rounds 1 and 2 are clap clap charge for both players, so everyone has 2 mana from round 3.</li>
+        <li>Miss the beat and you stand still: no mana gained, and any attack hits you.</li>
+        <li>Hypercharge gives +2 at once, then no Charge or Hypercharge for the rest of the game. A hypercharger who hits 0 mana loses straight away, unless their attack lands that same round.</li>
         <li>Reflect sends Hadouken and Shadouken back at the attacker. Anything bigger goes straight through.</li>
         <li>Punch only beats Reflect. Any attack beats Punch. Against anything else nothing happens.</li>
-        <li>Tian Di goes through every defence, Reflect included.</li>
         <li>Dig dodges everything above ground: Hadouken, Shadouken, Fireball and Tian. Earthquake hits diggers. The round after a Dig you're climbing out, so no Charge or Hypercharge.</li>
-        <li>Hypercharge gives +2 at once, then no Charge or Hypercharge for the rest of the game. A hypercharger who hits 0 mana loses straight away, unless their attack lands that same round.</li>
-        <li>Miss the beat and you stand still: no mana gained, and any attack hits you.</li>
+        <li>Tian Di goes through every defence, Reflect included.</li>
         <li>If neither player attacks, Charges or Hypercharges for 15 rounds in a row, the game is a draw.</li>
       </ul>
     </section>
@@ -467,6 +468,7 @@ function cpuPolicy(s,diff,hist){
   return {R,pr};
 }
 function cpuPick(s,diff,hist,rnd){
+  if(diff==='pacifist')return legal(s.p[1],false).includes('charge')?'charge':'block'; // only ever charges
   const {R,pr}=cpuPolicy(s,diff,hist);
   let u=(rnd||Math.random)()*pr.reduce((a,b)=>a+b,0);
   for(let i=0;i<R.length;i++){u-=pr[i];if(u<=0)return R[i];}
@@ -800,7 +802,6 @@ function lock(){
   S.beating=false;S.phase='reveal';timerStop();
   const a=S.p[0].pick||'stall',b=S.p[1].pick||'stall';
   if(S.mode==='cpu'&&!S.forced&&S.tut==null&&a!=='stall')S.hist[a]=(S.hist[a]||0)+1;
-  const before=S.p.map(q=>q.mana);
   const res=step({p:S.p},a,b);
   S.p.forEach((q,i)=>{q.mana=res.p[i].mana;q.hyper=res.p[i].hyper;q.dug=res.p[i].dug;});
   const active=x=>M[x].kind==='atk'||M[x].kind==='gain';
@@ -828,7 +829,6 @@ function lock(){
     const dA=say(0,a,0,vr),dB=say(1,b,off,vr);
     callEnd=Math.max(dA,off+dB);
   }
-  const manaLine=`${n[0]} ${before[0]} → ${S.p[0].mana} · ${n[1]} ${before[1]} → ${S.p[1].mana} mana`;
   if(S.tut!=null){
     const L=TUT[S.tut];S.tut++;
     setVerdict(res.text,L.after,res.loser===1?'win':'');
@@ -839,8 +839,8 @@ function lock(){
   }
   if(res.loser===null){
     const left=STALE_LIMIT-S.idle;
-    setVerdict(res.text,left<=3?`${manaLine}.`:manaLine);sSafe();
-    if(left<=3){const w=document.createElement('span');w.className='warn';w.textContent=` Draw in ${left} ${left===1?'round':'rounds'} unless someone attacks or charges.`;el.vd.appendChild(w);}
+    setVerdict(res.text,'');sSafe();
+    if(left<=3){const w=document.createElement('span');w.className='warn';w.textContent=`Draw in ${left} ${left===1?'round':'rounds'} unless someone attacks or charges.`;el.vd.appendChild(w);}
     later(vr>1?TEMPO[S.tempo].reveal:Math.max(TEMPO[S.tempo].reveal,Math.round(callEnd*1000)+120),startRound);
     return;
   }
@@ -961,12 +961,12 @@ function stoppedBy(m){
 $('#atkList').innerHTML=MOVES.filter(m=>m.kind==='atk').map(m=>`<li style="--tier:${tierOf(m.id)}"><span class="num">${m.cost}</span><span><b>${m.name}</b> <span>${stoppedBy(m)}</span></span></li>`).join('');
 const DESC={
   charge:'+1 mana. Locked after a Hypercharge, and for the round after a Dig.',
-  hyper:`+2 mana at once. No more Charge or Hypercharge this game. Out at ${HYPER_OUT} mana.`,
-  reflect:'Sends Hadouken and Shadouken back. Loses to Punch and to 3 or more.',
+  hyper:`+2 mana at once. No Charge or Hypercharge for the rest of the game, and you lose if you drop to ${HYPER_OUT} mana.`,
+  reflect:'Sends Hadouken and Shadouken back at the thrower. Punch, Fireball and bigger attacks still hit you.',
   punch:'Beats Reflect. Loses to any attack. Does nothing to anything else.',
   block:'Stops Hadouken, Shadouken and Fireball.',
   fly:'Dodges Hadouken, Fireball and Earthquake. Shadouken hits fliers.',
-  dig:'Dodges Hadouken, Shadouken, Fireball and Tian. Earthquake hits diggers. No Charge or Hypercharge the next round.'
+  dig:'Dodges Hadouken, Shadouken, Fireball and Tian. Earthquake hits diggers. You can\'t Charge or Hypercharge the round after.'
 };
 $('#defList').innerHTML=['charge','hyper','reflect','punch','block','fly','dig'].map(id=>`<li style="--tier:${tierOf(id)}"><span class="ico">${GLYPH[id]}</span><span><b>${M[id].name}</b> <span>${DESC[id]}</span></span></li>`).join('');
 (function chart(){
