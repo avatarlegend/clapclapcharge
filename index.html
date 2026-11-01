@@ -165,6 +165,11 @@ fieldset:disabled{opacity:.35}
 .btn.primary{background:var(--sun);border-color:var(--sun);color:var(--slate-deep);font-family:var(--f-display);font-weight:400;font-size:19px;padding:11px 26px}
 .btn:focus-visible{outline:3px solid var(--chalk);outline-offset:3px}
 .small{font-size:12px;color:var(--chalk-dim);margin:0}
+.fb{appearance:none;background:none;border:0;padding:0;font:800 12px var(--f-body);color:var(--sun);cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+#fbk{background:rgba(17,35,30,.985)}
+#fbText{width:100%;box-sizing:border-box;min-height:130px;resize:vertical;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:rgba(0,0,0,.18);color:var(--chalk);font:600 15px/1.4 var(--f-body)}
+#fbText:focus-visible{outline:3px solid var(--sun);outline-offset:2px}
+#fbStatus.ok{color:var(--good)} #fbStatus.err{color:var(--bad)}
 .ktab{width:100%;border-collapse:collapse}
 .ktab th,.ktab td{padding:3px 6px 3px 0;text-align:left;font-size:13px;font-weight:800}
 .ktab thead th{font:900 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--chalk-dim)}
@@ -285,6 +290,7 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
         </fieldset>
         <div class="btns"><button class="btn primary" type="button" id="startBtn">Start</button><button class="btn" type="button" id="tutBtn">Tutorial</button><button class="btn" type="button" id="keysBtn">Keys</button></div>
         <p class="small" id="menuHint">Pick before the third clap or you stand still. 2 players: hold the phone flat between you; Player 2's pad is upside down along the top.</p>
+        <p class="small"><button type="button" class="fb" id="fbBtn">Feedback, bug or idea? Tell me here.</button></p>
       </div>
     </div>
 
@@ -307,6 +313,16 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
         </table>
         <div class="btns"><button class="btn primary" type="button" id="keysDone">Done</button><button class="btn" type="button" id="keysReset">Reset to default</button></div>
       </div>
+    </div>
+
+    <div class="overlay" id="fbk" hidden>
+      <form class="sheet" id="fbForm">
+        <h2 class="ptitle">Feedback</h2>
+        <label class="small" for="fbText">Bugs, ideas, anything. No sign-in needed.</label>
+        <textarea id="fbText" maxlength="3000" placeholder="Your feedback"></textarea>
+        <div class="btns"><button class="btn primary" type="submit" id="fbSend">Send</button><button class="btn" type="button" id="fbClose">Close</button></div>
+        <p class="small" id="fbStatus" role="status" aria-live="polite"></p>
+      </form>
     </div>
   </main>
 
@@ -517,7 +533,7 @@ const S={mode:'cpu',diff:'normal',tempo:'normal',round:0,phase:'menu',forced:fal
   p:[{mana:3,hyper:false,dug:false,pick:'block'},{mana:0,hyper:false,dug:false,pick:'a3'}],score:[0,0],log:[],hist:{}};
 const names=()=>S.mode==='cpu'?['You','CPU']:['Player 1','Player 2'];
 
-const el={keys:$('#keys'),game:$('#game'),hudTop:$('#hudTop'),hudBot:$('#hudBot'),padP1:$('#padP1'),padP2:$('#padP2'),
+const el={fbk:$('#fbk'),keys:$('#keys'),game:$('#game'),hudTop:$('#hudTop'),hudBot:$('#hudBot'),padP1:$('#padP1'),padP2:$('#padP2'),
   cardTop:$('#cardTop'),cardBot:$('#cardBot'),vh:$('#vh'),vd:$('#vd'),beat:[...document.querySelectorAll('#beat .b')],
   beatGo:$('#beatGo'),timer:$('#timerBar'),menu:$('#menu'),panel:$('#panel')};
 
@@ -870,7 +886,8 @@ function showOver(res,detail){
   else{const w=1-res.loser;t=S.mode==='cpu'?(w===0?'You win':'CPU wins'):`${n[w]} wins`;cls=S.mode==='cpu'?(w===0?'win':'lose'):'win';}
   showPanel(t,`${detail} Game over in round ${S.round}.`,[
     {label:'Rematch',primary:true,fn:()=>newMatch(false)},
-    {label:'Change settings',fn:openMenu}
+    {label:'Change settings',fn:openMenu},
+    {label:'Feedback',fn:openFeedback}
   ],`Score: ${n[0]} ${S.score[0]}, ${n[1]} ${S.score[1]}.${S.mode==='cpu'?' Enter for rematch.':''}`,cls);
 }
 function showPanel(title,detail,btns,note,cls){
@@ -934,6 +951,23 @@ document.querySelectorAll('input[name="mode"]').forEach(r=>r.addEventListener('c
 }));
 $('#pauseBtn').addEventListener('click',pause);
 $('#keysBtn').addEventListener('click',openKeys);
+/* feedback: posts straight to the Google Form (single paragraph field); the response is opaque, so success is assumed once the request goes out */
+const FB_URL='https://docs.google.com/forms/d/e/1FAIpQLSeFaioXmOsrtGt6j6kSRrocgAza6rRWgvDgZ_rrBL5mPXn5Sw/formResponse',FB_FIELD='entry.1141465133';
+let fbFrom=null;
+function fbSay(t,c){const p=$('#fbStatus');p.textContent=t;p.className='small'+(c?' '+c:'');}
+function openFeedback(){fbFrom=document.activeElement;fbSay('');el.fbk.hidden=false;$('#fbText').focus({preventScroll:true});}
+function closeFeedback(){el.fbk.hidden=true;if(fbFrom&&fbFrom.focus)fbFrom.focus({preventScroll:true});}
+$('#fbBtn').addEventListener('click',openFeedback);
+$('#fbClose').addEventListener('click',closeFeedback);
+$('#fbForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+  const t=$('#fbText').value.trim();if(!t){fbSay('Type something first.','err');return;}
+  const btn=$('#fbSend');btn.disabled=true;fbSay('Sending…');
+  try{await fetch(FB_URL,{method:'POST',mode:'no-cors',body:new URLSearchParams({[FB_FIELD]:t})});
+    $('#fbText').value='';fbSay('Thanks, got it.','ok');}
+  catch(err){fbSay('Couldn\'t send. Check your connection and try again.','err');}
+  btn.disabled=false;
+});
 $('#keysDone').addEventListener('click',closeKeys);
 $('#keysReset').addEventListener('click',()=>{KB=copyKeys(KEY_DEF);kcap=null;saveKeys();renderKeys();});
 $('#kbody').addEventListener('click',e=>{const b=e.target.closest('.kb');if(!b)return;
@@ -944,6 +978,7 @@ document.addEventListener('keydown',e=>{
   if(e.metaKey||e.ctrlKey||e.altKey)return;
   const k=e.key.toLowerCase();
   if(!el.keys.hidden){if(k==='escape'){e.preventDefault();closeKeys();}return;}
+  if(!el.fbk.hidden){if(k==='escape'){e.preventDefault();closeFeedback();}return;}
   if(k==='escape'){if(S.phase==='pick'||S.phase==='reveal'){e.preventDefault();pause();}return;}
   if(k==='enter'&&S.phase==='over'&&!el.panel.hidden&&document.activeElement&&document.activeElement.tagName!=='BUTTON'){e.preventDefault();newMatch(false);return;}
   const hit=S.phase==='pick'&&keyFor(e.code);
