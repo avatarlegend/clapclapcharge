@@ -147,6 +147,33 @@ body{background:var(--slate-deep);color:var(--chalk);font-family:var(--f-body);f
 .game[data-mode="pvp"] .mv{min-height:44px}
 .game[data-mode="pvp"] .row.gain .mv{min-height:36px}
 @media (max-height:860px){.game[data-mode="pvp"] .row.def .tip{display:none}.game[data-mode="pvp"] .card{min-height:50px;padding-block:4px}}
+/* short phones in 2-player mode: two full pads plus the arena don't fit, so tighten pads, cards and the middle */
+@media (max-height:720px){
+  .game[data-mode="pvp"]{gap:4px;padding-block:6px}
+  .game[data-mode="pvp"] .side{gap:4px}
+  .game[data-mode="pvp"] .hud{min-height:34px}
+  .game[data-mode="pvp"] .pad,.game[data-mode="pvp"] .row{gap:4px}
+  .game[data-mode="pvp"] .mv{min-height:38px;padding-block:2px}
+  .game[data-mode="pvp"] .row.gain .mv{min-height:30px}
+  .game[data-mode="pvp"] .arena{min-height:0;gap:4px;padding-block:4px}
+  .game[data-mode="pvp"] .card{min-height:40px;padding-block:2px}
+  .game[data-mode="pvp"] .card .cs{display:none}
+  .game[data-mode="pvp"] .card .g{width:30px;height:30px}
+  .game[data-mode="pvp"] .card .g svg{width:26px;height:26px}
+  .game[data-mode="pvp"] .card .g .num{font-size:26px}
+  .game[data-mode="pvp"] .mid{gap:4px}
+  .game[data-mode="pvp"] .verdict{min-height:0}
+}
+@media (max-height:600px){
+  .game .card{min-height:50px;padding-block:4px}
+  .game[data-mode="pvp"] .hud{min-height:30px}
+  .game[data-mode="pvp"] .mv{min-height:32px}
+  .game[data-mode="pvp"] .row.gain .mv{min-height:26px}
+  .game[data-mode="pvp"] .row.gain .tip,.game[data-mode="pvp"] .row.atk .nm{display:none}
+  .game[data-mode="pvp"] .beat .b{padding:3px 8px;font-size:11px}
+  .game[data-mode="pvp"] .tools .tool{padding:3px 7px}
+}
+@media (max-width:340px) and (max-height:600px){.vh{font-size:15px}.vd{font-size:13px}.game .arena{gap:3px;padding-block:3px}.game .mid{gap:3px}}
 
 /* overlays */
 .overlay{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:16px;overflow:auto;
@@ -246,7 +273,7 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
         </div>
         <div class="timer"><i id="timerBar"></i></div>
         <div class="verdict" aria-live="polite">
-          <div class="vh" id="vh">Block stops Fireball.</div>
+          <div class="vh" id="vh">Block stops Shadouken.</div>
           <div class="vd" id="vd">Sample round. Press Start to play.</div>
         </div>
         <div class="tools">
@@ -349,7 +376,8 @@ table.chart{border-collapse:collapse;font-size:12px;font-variant-numeric:tabular
         <li>Each round is clap, clap, then both players show a move at once. Whoever gets hit loses the game.</li>
         <li>Rounds 1 and 2 are clap clap charge for both players, so everyone has 2 mana from round 3.</li>
         <li>Miss the beat and you stand still: no mana gained, and any attack hits you.</li>
-        <li>Hypercharge gives +2 at once, then no Charge or Hypercharge for the rest of the game. A hypercharger who hits 0 mana loses straight away, unless their attack lands that same round.</li>
+        <li>Hypercharge gives +3 at once, then no Charge or Hypercharge for the rest of the game. A hypercharger who hits 0 mana loses straight away, unless their attack lands that same round.</li>
+        <li>Block stops Hadouken and Shadouken. Fireball is too strong to block.</li>
         <li>Reflect sends Hadouken and Shadouken back at the attacker. Anything bigger goes straight through.</li>
         <li>Punch only beats Reflect. Any attack beats Punch. Against anything else nothing happens.</li>
         <li>Dig dodges everything above ground: Hadouken, Shadouken, Fireball and Tian. Earthquake hits diggers. The round after a Dig you're climbing out, so no Charge or Hypercharge.</li>
@@ -380,16 +408,16 @@ const MOVES=[
   {id:'a5',name:'Tian',kind:'atk',cost:5,key:'5'},
   {id:'a8',name:'Tian Di',kind:'atk',cost:8,key:'8',unblockable:true},
   {id:'charge',name:'Charge',kind:'gain',key:'c',tip:'+1 mana'},
-  {id:'hyper',name:'Hypercharge',kind:'gain',key:'h',tip:'+2, then no more charging'},
+  {id:'hyper',name:'Hypercharge',kind:'gain',key:'h',tip:'+3, then no more charging'},
   {id:'reflect',name:'Reflect',kind:'def',key:'r',tip:'Returns 1 2'},
   {id:'punch',name:'Punch',kind:'punch',key:'p',tip:'Beats Reflect'},
-  {id:'block',name:'Block',kind:'def',key:'b',tip:'Stops 1 2 3'},
+  {id:'block',name:'Block',kind:'def',key:'b',tip:'Stops 1 2'},
   {id:'fly',name:'Fly',kind:'def',key:'f',tip:'Dodges 1 3 4'},
   {id:'dig',name:'Dig',kind:'def',key:'d',tip:'Dodges 1 2 3 5'}
 ];
 const M=Object.fromEntries(MOVES.map(m=>[m.id,m]));
 M.stall={id:'stall',name:'Too slow',kind:'none',tip:'Missed the beat'};
-const STOPS={reflect:[1,2],block:[1,2,3],fly:[1,3,4],dig:[1,2,3,5]};
+const STOPS={reflect:[1,2],block:[1,2],fly:[1,3,4],dig:[1,2,3,5]};
 const STOP_VERB={block:'stops',fly:'dodges',dig:'dodges'};
 const HYPER_OUT=0;
 const STALE_LIMIT=15; // rounds in a row with no attack, Charge or Hypercharge from either side = draw
@@ -407,7 +435,7 @@ function attackVs(atk,other){
     : {r:'other',t:`${atk.name} is too strong to reflect.`};
   if(STOPS[other.id]) return STOPS[other.id].includes(c)
     ? {r:'none',t:`${other.name} ${STOP_VERB[other.id]} ${atk.name}.`}
-    : {r:'other',t:`${other.name} can't stop ${atk.name}.`};
+    : {r:'other',t:other.id==='block'&&atk.id==='a3'?`Fireball is too strong to block.`:`${other.name} can't stop ${atk.name}.`};
   if(other.id==='punch') return {r:'other',t:`${atk.name} beats Punch.`};
   if(other.id==='stall') return {r:'other',t:`Too slow. ${atk.name} lands.`};
   return {r:'other',t:`${atk.name} lands mid-${other.id==='hyper'?'hypercharge':'charge'}.`};
@@ -435,7 +463,7 @@ function step(s,a,b){
     const mv=M[[a,b][i]];let mana=q.mana,hyper=q.hyper;
     if(mv.kind==='atk') mana-=mv.cost;
     else if(mv.id==='charge') mana+=1;
-    else if(mv.id==='hyper'){mana+=2;hyper=true;}
+    else if(mv.id==='hyper'){mana+=3;hyper=true;}
     return {mana,hyper,dug:mv.id==='dig'};
   });
   let loser=r.hit,burn=[false,false];
@@ -445,14 +473,19 @@ function step(s,a,b){
   }
   return {p,loser,hit:r.hit,burn,text:r.text};
 }
-// ---- CPU: solve the one-round payoff matrix (regret matching), then add difficulty noise / exploitation
-function effMana(q){return (q.hyper?q.mana-1:q.mana)-(q.dug?DUG_COST:0);}
-const DUG_COST=0.08;
+// ---- CPU: every position's value under the current rules, solved offline for the whole game (equilibrium play, mana capped at 10, 0.98 per-round discount).
+// Value is for the first player in the pair, scaled by 10000. Ordered by player state (mana 0-10, hyper, dug) x opponent state.
+// If the rules change, this table must be re-solved or the CPU will play the old rules.
+const VAL_CAP=10,VAL_G=0.98;
+const VAL="0,2532,-2584,-2020,4968,4968,-3767,-3379,2940,2940,-6285,-5685,1532,1532,-7734,-6778,-2146,-2146,-9800,-8182,-3473,-3473,-9800,-8391,-4960,-4960,-9800,-8880,-5597,-5597,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-2532,0,-3691,-2532,4868,4868,-6159,-3691,2881,2881,-7580,-6159,1486,1486,-9604,-7580,-2146,-2146,-9800,-9604,-3473,-3473,-9800,-9604,-4960,-4960,-9800,-9605,-5597,-5597,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,2584,3691,0,340,5371,5371,-951,-736,3403,3403,-2738,-2334,2046,2046,-4750,-4570,-1985,-1985,-6925,-6487,-3232,-3232,-7105,-6725,-4295,-4295,-7350,-7048,-4789,-4789,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,2020,2532,-340,0,5263,5263,-1319,-932,3335,3335,-3113,-2801,1980,1980,-4971,-4693,-1985,-1985,-7220,-6862,-3232,-3232,-7356,-7038,-4295,-4295,-7528,-7274,-4789,-4789,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-4968,-4868,-5371,-5263,0,0,-5844,-5727,0,0,-6418,-6290,0,0,-7150,-7041,-3213,-3213,-8174,-8010,-4756,-4756,-8174,-8014,-5434,-5434,-8261,-8122,-5622,-5622,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-4968,-4868,-5371,-5263,0,0,-5844,-5727,0,0,-6418,-6290,0,0,-7150,-7041,-3213,-3213,-8174,-8010,-4756,-4756,-8174,-8014,-5434,-5434,-8261,-8122,-5622,-5622,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,3767,6159,951,1319,5844,5844,0,186,3974,3974,-1749,-1186,2833,2833,-3807,-3643,-1772,-1772,-6002,-5514,-2788,-2788,-6323,-5901,-4007,-4007,-6737,-6388,-4471,-4471,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,3379,3691,736,932,5727,5727,-186,0,3894,3894,-1932,-1780,2732,2732,-3854,-3808,-1772,-1772,-6073,-5903,-2788,-2788,-6335,-6201,-4007,-4007,-6737,-6610,-4471,-4471,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-2940,-2881,-3403,-3335,0,0,-3974,-3894,0,0,-4702,-4608,0,0,-5686,-5635,-3056,-3056,-7181,-7037,-4602,-4602,-7379,-7234,-5413,-5413,-7642,-7494,-5604,-5604,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-2940,-2881,-3403,-3335,0,0,-3974,-3894,0,0,-4702,-4608,0,0,-5686,-5635,-3056,-3056,-7181,-7037,-4602,-4602,-7379,-7234,-5413,-5413,-7642,-7494,-5604,-5604,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,6285,7580,2738,3113,6418,6418,1749,1932,4702,4702,0,394,3425,3425,-2345,-2299,-642,-642,-4782,-4251,-2240,-2240,-5351,-4868,-3412,-3412,-5795,-5444,-4009,-4009,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,5685,6159,2334,2801,6290,6290,1186,1780,4608,4608,-394,0,3295,3295,-2579,-2497,-789,-789,-4782,-4373,-2253,-2253,-5351,-4927,-3412,-3412,-5796,-5444,-4009,-4009,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-1532,-1486,-2046,-1980,0,0,-2833,-2732,0,0,-3425,-3295,0,0,-4802,-4765,-2644,-2644,-6556,-6136,-4361,-4361,-6783,-6474,-5304,-5304,-7024,-6832,-5483,-5483,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-1532,-1486,-2046,-1980,0,0,-2833,-2732,0,0,-3425,-3295,0,0,-4802,-4765,-2644,-2644,-6556,-6136,-4361,-4361,-6783,-6474,-5304,-5304,-7024,-6832,-5483,-5483,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,7734,9604,4750,4971,7150,7150,3807,3854,5686,5686,2345,2579,4802,4802,0,0,2698,2698,-3732,-3081,-1115,-1115,-4256,-3695,-2164,-2164,-4789,-4513,-2874,-2874,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,6778,7580,4570,4693,7041,7041,3643,3808,5635,5635,2299,2497,4765,4765,0,0,2672,2672,-3732,-3081,-1115,-1115,-4256,-3695,-2164,-2164,-4789,-4513,-2874,-2874,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,2146,2146,1985,1985,3213,3213,1772,1772,3056,3056,642,789,2644,2644,-2698,-2672,0,0,-5342,-4623,-3085,-3085,-5397,-4840,-3938,-3938,-5604,-5288,-4430,-4430,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,2146,2146,1985,1985,3213,3213,1772,1772,3056,3056,642,789,2644,2644,-2698,-2672,0,0,-5342,-4623,-3085,-3085,-5397,-4840,-3938,-3938,-5604,-5288,-4430,-4430,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,9800,9800,6925,7220,8174,8174,6002,6073,7181,7181,4782,4782,6556,6556,3732,3732,5342,5342,0,0,2989,2989,-755,-755,1529,1529,-1308,-1308,858,858,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,8182,9604,6487,6862,8010,8010,5514,5903,7037,7037,4251,4373,6136,6136,3081,3081,4623,4623,0,0,2989,2989,-755,-755,1529,1529,-1308,-1308,858,858,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,3473,3473,3232,3232,4756,4756,2788,2788,4602,4602,2240,2253,4361,4361,1115,1115,3085,3085,-2989,-2989,0,0,-3075,-3075,-2309,-2309,-3214,-3214,-2346,-2346,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,3473,3473,3232,3232,4756,4756,2788,2788,4602,4602,2240,2253,4361,4361,1115,1115,3085,3085,-2989,-2989,0,0,-3075,-3075,-2309,-2309,-3214,-3214,-2346,-2346,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,9800,9800,7105,7356,8174,8174,6323,6335,7379,7379,5351,5351,6783,6783,4256,4256,5397,5397,755,755,3075,3075,0,0,1763,1763,-460,-460,1165,1165,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,8391,9604,6725,7038,8014,8014,5901,6201,7234,7234,4868,4927,6474,6474,3695,3695,4840,4840,755,755,3075,3075,0,0,1763,1763,-460,-460,1165,1165,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,4960,4960,4295,4295,5434,5434,4007,4007,5413,5413,3412,3412,5304,5304,2164,2164,3938,3938,-1529,-1529,2309,2309,-1763,-1763,0,0,-1956,-1956,-37,-37,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,4960,4960,4295,4295,5434,5434,4007,4007,5413,5413,3412,3412,5304,5304,2164,2164,3938,3938,-1529,-1529,2309,2309,-1763,-1763,0,0,-1956,-1956,-37,-37,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,9800,9800,7350,7528,8261,8261,6737,6737,7642,7642,5795,5796,7024,7024,4789,4789,5604,5604,1308,1308,3214,3214,460,460,1956,1956,0,0,1395,1395,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,8880,9605,7048,7274,8122,8122,6388,6610,7494,7494,5444,5444,6832,6832,4513,4513,5288,5288,1308,1308,3214,3214,460,460,1956,1956,0,0,1395,1395,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,5597,5597,4789,4789,5622,5622,4471,4471,5604,5604,4009,4009,5483,5483,2874,2874,4430,4430,-858,-858,2346,2346,-1165,-1165,37,37,-1395,-1395,0,0,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,5597,5597,4789,4789,5622,5622,4471,4471,5604,5604,4009,4009,5483,5483,2874,2874,4430,4430,-858,-858,2346,2346,-1165,-1165,37,37,-1395,-1395,0,0,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,0,0,10000,10000,-2532,-2532,4868,4868,-3691,-3691,2881,2881,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,0,0,10000,10000,-2532,-2532,4868,4868,-3691,-3691,2881,2881,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-10000,-10000,0,0,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-10000,-10000,0,0,-10000,-10000,-10000,-10000,-10000,-10000,-10000,-10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,2532,2532,10000,10000,0,0,5263,5263,-932,-932,3335,3335,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,2532,2532,10000,10000,0,0,5263,5263,-932,-932,3335,3335,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-4868,-4868,10000,10000,-5263,-5263,0,0,-5727,-5727,0,0,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-4868,-4868,10000,10000,-5263,-5263,0,0,-5727,-5727,0,0,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,3691,3691,10000,10000,932,932,5727,5727,0,0,3894,3894,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,3691,3691,10000,10000,932,932,5727,5727,0,0,3894,3894,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-2881,-2881,10000,10000,-3335,-3335,0,0,-3894,-3894,0,0,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,10000,-2881,-2881,10000,10000,-3335,-3335,0,0,-3894,-3894,0,0".split(',').map(v=>+v/1e4);
+const QIDX=(()=>{const o={};let k=0;for(let m=0;m<=VAL_CAP;m++)for(const h of [0,1])for(const d of [0,1]){if(h&&!m)continue;o[m*4+h*2+d]=k++;}return o;})();
+const NQ=Object.keys(QIDX).length;
+function qIdx(q){return QIDX[Math.min(q.mana,VAL_CAP)*4+(q.hyper?2:0)+(q.dug?1:0)];}
 function valueFor(me,res){
   if(res.loser==='draw') return 0;
   if(res.loser===me) return -1;
   if(res.loser===1-me) return 1;
-  return 0.6*Math.tanh(0.35*(effMana(res.p[me])-effMana(res.p[1-me])));
+  return VAL_G*VAL[qIdx(res.p[me])*NQ+qIdx(res.p[1-me])];
 }
 function solve(A,it){
   const n=A.length,m=A[0].length;
@@ -469,24 +502,33 @@ function solve(A,it){
   const nz=v=>{const t=v.reduce((a,b)=>a+b,0);return v.map(x=>x/t);};
   return {x:nz(sx),y:nz(sy)};
 }
+/* Levels. noise: share of picks spread evenly over moves that can still win. exploit: how far it leans on your past moves (needs 10 seen).
+   trust: weight on your history vs sound play when predicting you. delta: the most it will give up against a perfect counter to lean on your habits. */
+const LEVELS={
+  easy:{noise:1},
+  normal:{noise:.2,exploit:.3,trust:.5,delta:.1},
+  hard:{noise:0,exploit:.6,trust:.6,delta:.1},
+  impossible:{noise:0,exploit:.9,trust:.8,delta:.05}
+};
 function cpuPolicy(s,diff,hist){
+  const cfg=LEVELS[diff]||LEVELS.normal;
   const R=legal(s.p[1],false),C=legal(s.p[0],false);
   const A=R.map(i=>C.map(j=>valueFor(1,step(s,j,i))));
-  const {x,y}=solve(A,400);
+  const {x,y}=solve(A,600);
   const viable=A.map(row=>Math.max(...row)>-1);
   const nv=viable.filter(Boolean).length||1;
-  const uni=i=>viable[i]?1/nv:0;
-  let pr;
-  if(diff==='easy') pr=x.map((v,i)=>0.4*v+0.6*uni(i));
-  else if(diff==='normal') pr=x.map((v,i)=>0.82*v+0.18*uni(i));
-  else{
-    const f=C.map(id=>(hist[id]||0)+1),ft=f.reduce((a,b)=>a+b,0);
-    const model=C.map((_,j)=>0.55*y[j]+0.45*f[j]/ft);
-    const ev=A.map(row=>row.reduce((t,v,j)=>t+v*model[j],0));
-    const mx=Math.max(...ev),w=ev.map(v=>Math.exp((v-mx)/0.05)),wt=w.reduce((a,b)=>a+b,0);
-    pr=diff==='hard'
-      ? x.map((v,i)=>0.65*v+0.05*uni(i)+0.3*w[i]/wt)
-      : x.map((v,i)=>0.5*v+0.5*w[i]/wt);
+  let pr=x.map((v,i)=>(1-cfg.noise)*v+cfg.noise*(viable[i]?1/nv:0));
+  if(cfg.exploit){
+    const f=C.map(id=>hist[id]||0),n=f.reduce((a,b)=>a+b,0);
+    if(n>=10){
+      const model=C.map((_,j)=>(1-cfg.trust)*y[j]+cfg.trust*f[j]/n);
+      const ev=A.map(row=>row.reduce((t,v,j)=>t+v*model[j],0));
+      const mx=Math.max(...ev),w=ev.map(v=>Math.exp((v-mx)/0.03)),wt=w.reduce((a,b)=>a+b,0);
+      const worst=q=>Math.min(...C.map((_,j)=>A.reduce((t,row,i)=>t+q[i]*row[j],0)));
+      const floor=worst(x)-cfg.delta;let e=cfg.exploit,cand;
+      for(;;){cand=pr.map((v,i)=>(1-e)*v+e*w[i]/wt);if(e<=0.001||worst(cand)>=floor)break;e*=0.7;}
+      if(e>0.001)pr=cand;
+    }
   }
   return {R,pr};
 }
@@ -528,7 +570,7 @@ const TUT=[
   {forced:true,mana:[0,0],tip:'Every game opens with clap, clap, Charge. Just watch.',after:'+1 mana each.'},
   {forced:true,mana:[1,1],tip:'And once more, so everyone starts with 2 mana.',after:'You both have 2 mana.'},
   {mana:[2,2],cpu:'block',allow:'charge',tip:'Tap Charge for +1 mana. The claps start once you pick.',after:'Charge gives +1 mana. Bigger attacks cost more.'},
-  {mana:[3,2],cpu:'a2',allow:'block',tip:'The CPU is about to throw Shadouken (2). Block stops 1, 2 and 3.',after:'Block is free, but it can\'t stop 4 or 5.'},
+  {mana:[3,2],cpu:'a2',allow:'block',tip:'The CPU is about to throw Shadouken (2). Block stops 1 and 2.',after:'Block is free, but Fireball (3) and bigger break through.'},
   {mana:[3,0],cpu:'charge',allow:'a1',tip:'The CPU is charging. Any attack hits someone who is charging. Throw Hadouken (1).',after:'One hit and they\'re out. That\'s a win.'},
   {mana:[3,1],cpu:'a1',allow:'a2',tip:'The CPU throws Hadouken (1). Throw Shadouken (2): the bigger attack wins.',after:'When attacks meet, the bigger one wins. Equal attacks cancel.'},
   {mana:[2,1],cpu:'a1',allow:'reflect',tip:'Reflect sends Hadouken and Shadouken back at the thrower. Try it.',after:'But Punch beats Reflect, and 3 or more goes straight through.'},
@@ -1014,7 +1056,7 @@ function startTutorial(){
 }
 function tutEnd(){
   S.phase='over';S.tut=null;
-  showPanel('Tutorial done','Tian Di (8) beats everything, so a player who reaches 8 mana is hard to stop. Hypercharge gives +2 at once, but you can never charge again that game.',[
+  showPanel('Tutorial done','Tian Di (8) beats everything, so a player who reaches 8 mana is hard to stop. Hypercharge gives +3 at once, but you can never charge again that game.',[
     {label:'Play vs Easy',primary:true,fn:()=>{const r=document.querySelector('input[name="diff"][value="easy"]');if(r)r.checked=true;const m=document.querySelector('input[name="mode"][value="cpu"]');if(m)m.checked=true;$('#diffSet').disabled=false;newMatch(true);}},
     {label:'Menu',fn:openMenu}
   ]);
@@ -1091,11 +1133,11 @@ function stoppedBy(m){
 $('#atkList').innerHTML=MOVES.filter(m=>m.kind==='atk').map(m=>`<li style="--tier:${tierOf(m.id)}"><span class="num">${m.cost}</span><span><b>${m.name}</b> <span>${stoppedBy(m)}</span></span></li>`).join('');
 const DESC={
   charge:'+1 mana. Locked after a Hypercharge, and for the round after a Dig.',
-  hyper:`+2 mana at once. No Charge or Hypercharge for the rest of the game, and you lose if you drop to ${HYPER_OUT} mana.`,
+  hyper:`+3 mana at once. No Charge or Hypercharge for the rest of the game, and you lose if you drop to ${HYPER_OUT} mana.`,
   reflect:'Sends Hadouken and Shadouken back at the thrower. Punch, Fireball and bigger attacks still hit you.',
   punch:'Beats Reflect. Loses to any attack. Does nothing to anything else.',
-  block:'Stops Hadouken, Shadouken and Fireball.',
-  fly:'Dodges Hadouken, Fireball and Earthquake. Shadouken hits fliers.',
+  block:'Stops Hadouken and Shadouken. Fireball is too strong to block.',
+  fly:'Dodges Hadouken, Fireball and Earthquake. Shadouken and Tian hit fliers.',
   dig:'Dodges Hadouken, Shadouken, Fireball and Tian. Earthquake hits diggers. You can\'t Charge or Hypercharge the round after.'
 };
 $('#defList').innerHTML=['charge','hyper','reflect','punch','block','fly','dig'].map(id=>`<li style="--tier:${tierOf(id)}"><span class="ico">${GLYPH[id]}</span><span><b>${M[id].name}</b> <span>${DESC[id]}</span></span></li>`).join('');
@@ -1113,7 +1155,7 @@ $('#defList').innerHTML=['charge','hyper','reflect','punch','block','fly','dig']
 
 /* ---- sample board behind the menu ---- */
 renderAll();
-cardFace(el.cardTop,'a3',{cls:''});cardFace(el.cardBot,'block',{cls:'safe'});
+cardFace(el.cardTop,'a2',{cls:''});cardFace(el.cardBot,'block',{cls:'safe'});
 setBeat(2);
 })();
 </script>
